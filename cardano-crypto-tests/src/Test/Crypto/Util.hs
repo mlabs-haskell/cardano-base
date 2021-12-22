@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Test.Crypto.Util
   ( -- * CBOR
@@ -15,7 +16,10 @@ module Test.Crypto.Util
   , prop_cbor_valid
   , prop_cbor_roundtrip
   , prop_raw_serialise
+  , prop_raw_serialise_IO_from
+  , prop_raw_serialise_only
   , prop_size_serialise
+  , prop_size_serialise_IO
   , prop_cbor_direct_vs_class
 
     -- * NoThunks
@@ -65,6 +69,7 @@ import Test.QuickCheck
   , property
   , shrink
   , vector
+  , ioProperty
   )
 import Formatting.Buildable (Buildable (..))
 
@@ -100,7 +105,8 @@ instance Arbitrary TestSeed where
 --------------------------------------------------------------------------------
 
 arbitrarySeedOfSize :: Word -> Gen Seed
-arbitrarySeedOfSize sz = mkSeedFromBytes . BS.pack <$> vector (fromIntegral sz)
+arbitrarySeedOfSize sz =
+  (mkSeedFromBytes . BS.pack) <$> vector (fromIntegral sz)
 
 --------------------------------------------------------------------------------
 -- Messages to sign
@@ -174,6 +180,25 @@ prop_raw_serialise serialise deserialise x =
       Just y  -> y === x
       Nothing -> property False
 
+prop_raw_serialise_IO_from :: forall a b. (Eq a, Show a)
+                   => (a -> IO ByteString)
+                   -> (ByteString -> IO (Maybe a))
+                   -> (b -> IO a)
+                   -> b
+                   -> Property
+prop_raw_serialise_IO_from serialise deserialise mkX seed = do
+  ioProperty $ do
+    x <- mkX seed
+    serialise x >>= deserialise >>= \case
+      Just y  -> return (y === x)
+      Nothing -> return (property False)
+
+prop_raw_serialise_only :: (a -> ByteString)
+                        -> a -> Bool
+prop_raw_serialise_only serialise x =
+    let y = serialise x
+    in y `seq` True
+
 -- | The crypto algorithm classes have direct encoding functions, and the key
 -- types are also typically a member of the 'ToCBOR' class. Where a 'ToCBOR'
 -- instance is provided then these should match.
@@ -188,6 +213,11 @@ prop_cbor_direct_vs_class encoder x =
 prop_size_serialise :: (a -> ByteString) -> Word -> a -> Property
 prop_size_serialise serialise size x =
     BS.length (serialise x) === fromIntegral size
+
+prop_size_serialise_IO :: (a -> IO ByteString) -> Word -> a -> Property
+prop_size_serialise_IO serialise size x = ioProperty $ do
+    actual <- BS.length <$> serialise x
+    return $ actual === fromIntegral size
 
 --------------------------------------------------------------------------------
 -- NoThunks

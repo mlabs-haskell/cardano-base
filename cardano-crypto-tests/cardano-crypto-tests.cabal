@@ -42,6 +42,7 @@ library
 
   exposed-modules:      Test.Crypto.DSIGN
                         Test.Crypto.Hash
+                        Test.Crypto.RunIO
                         Test.Crypto.KES
                         Test.Crypto.Util
                         Test.Crypto.VRF
@@ -56,14 +57,18 @@ library
                       , cardano-crypto-praos
                       , cardano-prelude
                       , cborg
+                      , containers
                       , cryptonite
                       , formatting
+                      , mtl
                       , nothunks
                       , QuickCheck
                       , quickcheck-instances
                       , tasty
                       , tasty-quickcheck
                       , criterion
+                      , tasty-hunit
+                      , HUnit
 
 test-suite test-crypto
   import:               base, project-config
